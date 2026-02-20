@@ -22,6 +22,7 @@ export interface ObstacleData {
   depth?: number;
   gapStart?: number;
   gapEnd?: number;
+  rotation?: number;  // Z-axis rotation in radians
   // For spinners
   length?: number;
   spinSpeed?: number;
@@ -100,9 +101,11 @@ export function createPlatform(
   width: number,
   gapStart: number,
   gapEnd: number,
+  rotation: number = 0,
 ): ObstacleData {
   const group = new THREE.Group();
   group.position.set(x, y, z);
+  group.rotation.z = rotation;
 
   const platformHeight = 0.4;
   const platformDepth = 3;
@@ -141,6 +144,7 @@ export function createPlatform(
     depth: platformDepth,
     gapStart,
     gapEnd,
+    rotation,
   };
 }
 

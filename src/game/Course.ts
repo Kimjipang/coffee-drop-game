@@ -134,25 +134,24 @@ export class Course {
 
   private buildPlatformSection(): void {
     const platforms = [
-      { y: 3, gapStart: -2.5, gapEnd: 2.5 },
-      { y: -1, gapStart: 2, gapEnd: 7 },
-      { y: -5, gapStart: -7, gapEnd: -2 },
-      { y: -9, gapStart: -1, gapEnd: 4 },
-      { y: -13, gapStart: -5, gapEnd: 0 },
+      { y: 3,    gapStart: -3,   gapEnd: 3,   rotation: -0.06 },
+      { y: -2.5, gapStart: 1,    gapEnd: 7.5, rotation: -0.10 },
+      { y: -8,   gapStart: -7.5, gapEnd: -1,  rotation: 0.10 },
+      { y: -13,  gapStart: -1.5, gapEnd: 5,   rotation: -0.08 },
     ];
 
     for (const p of platforms) {
       this.addObstacle(
-        createPlatform(0, p.y, 0, COURSE_WIDTH, p.gapStart, p.gapEnd),
+        createPlatform(0, p.y, 0, COURSE_WIDTH, p.gapStart, p.gapEnd, p.rotation),
       );
     }
 
     // Bumpers near platforms
     const bumperPositions: [number, number][] = [
-      [-5, 1], [5, -3], [-4, -7],
+      [-6, 0.5], [6, -5], [-5, -10.5],
     ];
     for (const [x, y] of bumperPositions) {
-      this.addObstacle(createBumper(x, y, 0, 12));
+      this.addObstacle(createBumper(x, y, 0, 10));
     }
   }
 

@@ -186,23 +186,31 @@ export class Physics {
     const halfW = obs.width! / 2;
     const halfH = obs.height! / 2;
     const halfD = obs.depth! / 2;
+    const rot = obs.rotation || 0;
 
+    // World-space relative position
     const relX = char.position.x - obs.position.x;
     const relY = char.position.y - obs.position.y;
     const relZ = char.position.z - obs.position.z;
 
+    // Transform to platform local space (rotate by -rot)
+    const cosA = Math.cos(-rot);
+    const sinA = Math.sin(-rot);
+    const localX = relX * cosA - relY * sinA;
+    const localY = relX * sinA + relY * cosA;
+
     // In the gap — no collision
-    if (relX >= obs.gapStart! && relX <= obs.gapEnd!) {
+    if (localX >= obs.gapStart! && localX <= obs.gapEnd!) {
       return;
     }
 
     // Early exit if outside vertical / depth range
-    if (Math.abs(relY) >= halfH + char.radius) return;
+    if (Math.abs(localY) >= halfH + char.radius) return;
     if (Math.abs(relZ) >= halfD + char.radius) return;
 
     // Determine which solid segment the ball overlaps
     let segLeft: number, segRight: number;
-    if (relX < obs.gapStart!) {
+    if (localX < obs.gapStart!) {
       segLeft = -halfW;
       segRight = obs.gapStart!;
     } else {
@@ -212,34 +220,72 @@ export class Physics {
 
     const segCenterX = (segLeft + segRight) / 2;
     const segHalfW = (segRight - segLeft) / 2;
-    const segRelX = relX - segCenterX;
+    const segRelX = localX - segCenterX;
 
-    // AABB check against the actual solid segment
+    // AABB check against the solid segment in local space
     if (Math.abs(segRelX) < segHalfW + char.radius) {
       const overlapX = segHalfW + char.radius - Math.abs(segRelX);
-      const overlapY = halfH + char.radius - Math.abs(relY);
+      const overlapY = halfH + char.radius - Math.abs(localY);
+
+      // Rotation back to world helpers
+      const cosR = Math.cos(rot);
+      const sinR = Math.sin(rot);
 
       if (overlapY < overlapX) {
-        // Vertical collision
-        const sign = relY > 0 ? 1 : -1;
-        char.position.y = obs.position.y + sign * (halfH + char.radius);
-        if (sign > 0 && char.velocity.y < 0) {
-          char.velocity.y *= -RESTITUTION * (0.7 + Math.random() * 0.3);
-          char.velocity.x *= FRICTION;
-          // Push towards gap — minimum force so ball doesn't stall near the edge
-          const gapCenter = (obs.gapStart! + obs.gapEnd!) / 2 + obs.position.x;
-          const diff = gapCenter - char.position.x;
-          const seekMag = Math.max(Math.abs(diff) * PLATFORM_GAP_SEEK_FORCE, 1.5);
-          char.velocity.x += Math.sign(diff || 1) * seekMag;
-          char.velocity.x += (Math.random() - 0.5) * 1.5;
-        } else if (sign < 0 && char.velocity.y > 0) {
-          char.velocity.y *= -RESTITUTION;
+        // Vertical collision (top/bottom of platform in local space)
+        const sign = localY > 0 ? 1 : -1;
+        const pushLocalY = sign * (halfH + char.radius) - localY;
+
+        // Push out: transform local (0, pushLocalY) to world
+        char.position.x += -sinR * pushLocalY;
+        char.position.y += cosR * pushLocalY;
+
+        // Surface normal in world space
+        const nwx = -sinR * sign;
+        const nwy = cosR * sign;
+
+        const dot = char.velocity.x * nwx + char.velocity.y * nwy;
+        if (sign > 0 && dot < 0) {
+          // Ball hitting top surface — bounce off angled surface
+          const bounceFactor = RESTITUTION * (0.7 + Math.random() * 0.3);
+          char.velocity.x -= (1 + bounceFactor) * dot * nwx;
+          char.velocity.y -= (1 + bounceFactor) * dot * nwy;
+
+          // Friction along surface tangent
+          const tx = cosR;
+          const ty = sinR;
+          const tangentVel = char.velocity.x * tx + char.velocity.y * ty;
+          char.velocity.x -= tangentVel * (1 - FRICTION);
+          char.velocity.y -= tangentVel * (1 - FRICTION);
+
+          // Gap seek force (reduced since angle already guides ball)
+          const gapCenter = (obs.gapStart! + obs.gapEnd!) / 2;
+          const diff = gapCenter - localX;
+          const seekMag = Math.max(Math.abs(diff) * PLATFORM_GAP_SEEK_FORCE * 0.5, 0.8);
+          char.velocity.x += Math.sign(diff || 1) * seekMag * tx;
+          char.velocity.y += Math.sign(diff || 1) * seekMag * ty;
+          char.velocity.x += (Math.random() - 0.5) * 1.0;
+        } else if (sign < 0 && dot > 0) {
+          char.velocity.x -= (1 + RESTITUTION) * dot * nwx;
+          char.velocity.y -= (1 + RESTITUTION) * dot * nwy;
         }
       } else {
-        // Horizontal collision — pushes ball toward the gap edge
+        // Horizontal collision (gap edge in local space)
         const sign = segRelX > 0 ? 1 : -1;
-        char.position.x = obs.position.x + segCenterX + sign * (segHalfW + char.radius);
-        char.velocity.x *= -RESTITUTION;
+        const pushLocalX = sign * (segHalfW + char.radius) - segRelX;
+
+        // Push out: transform local (pushLocalX, 0) to world
+        char.position.x += cosR * pushLocalX;
+        char.position.y += sinR * pushLocalX;
+
+        // Edge normal in world space
+        const enx = cosR * sign;
+        const eny = sinR * sign;
+        const dot = char.velocity.x * enx + char.velocity.y * eny;
+        if (dot < 0) {
+          char.velocity.x -= (1 + RESTITUTION) * dot * enx;
+          char.velocity.y -= (1 + RESTITUTION) * dot * eny;
+        }
       }
     }
   }
