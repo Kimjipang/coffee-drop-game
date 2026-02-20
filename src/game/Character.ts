@@ -11,6 +11,7 @@ export class Character {
   finishTime: number;
   finishRank: number;
   labelDiv: HTMLDivElement | null = null;
+  breakoutRemaining: number = 0;
 
   constructor(name: string, color: number, startX: number, startY: number) {
     this.name = name;
@@ -24,6 +25,7 @@ export class Character {
     this.finished = false;
     this.finishTime = 0;
     this.finishRank = 0;
+    this.breakoutRemaining = 0;
 
     const geometry = new THREE.SphereGeometry(this.radius, 24, 24);
     const material = new THREE.MeshStandardMaterial({

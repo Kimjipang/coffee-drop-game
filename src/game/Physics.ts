@@ -17,6 +17,9 @@ import {
   STUCK_PUSH_FORCE,
   PLATFORM_GAP_SEEK_FORCE,
   LAUNCHER_RADIUS,
+  STUCK_BREAKOUT_TIME,
+  BREAKOUT_DURATION,
+  BREAKOUT_VELOCITY_Y,
 } from '../utils/constants';
 
 export class Physics {
@@ -72,7 +75,14 @@ export class Physics {
   }
 
   private checkObstacleCollisions(char: Character): void {
+    const inBreakout = char.breakoutRemaining > 0;
+
     for (const obs of this.obstacles) {
+      // 돌파 모드 중: PLATFORM과 MOVING_PLATFORM만 스킵
+      if (inBreakout && (obs.type === ObstacleType.PLATFORM || obs.type === ObstacleType.MOVING_PLATFORM)) {
+        continue;
+      }
+
       switch (obs.type) {
         case ObstacleType.PEG:
           this.collidePeg(char, obs);
@@ -332,6 +342,11 @@ export class Physics {
         char.velocity.x = Math.cos(angle) * force + (Math.random() - 0.5) * force * 0.2;
         char.velocity.y = Math.sin(angle) * force + (Math.random() - 0.5) * force * 0.1;
 
+        // 안전장치: 위로 향하는 Y 속도 제한 (최대 force의 30%)
+        if (char.velocity.y > 0) {
+          char.velocity.y = Math.min(char.velocity.y, force * 0.3);
+        }
+
         obs.lastLaunchTime = this.elapsedTime;
 
         const pushDist = r - dist + 0.5;
@@ -423,6 +438,12 @@ export class Physics {
   }
 
   private checkStuck(char: Character, rawDt: number, isSlowMotion: boolean): void {
+    // breakoutRemaining 카운트다운 (rawDt 기반, 슬로우 모션과 무관하게 실시간 감소)
+    if (char.breakoutRemaining > 0) {
+      char.breakoutRemaining -= rawDt;
+      if (char.breakoutRemaining < 0) char.breakoutRemaining = 0;
+    }
+
     if (!this.stuckTrackers.has(char)) {
       this.stuckTrackers.set(char, {
         lastCheckTime: 0,
@@ -454,12 +475,19 @@ export class Physics {
       tracker.lastCheckPos.copy(char.position);
       tracker.lastCheckTime = 0;
 
-      if (tracker.stuckDuration >= STUCK_FORCE_TIME) {
+      if (tracker.stuckDuration >= STUCK_BREAKOUT_TIME) {
+        // 3단계: 돌파 모드 (5초 갇힘)
+        char.velocity.y = BREAKOUT_VELOCITY_Y;
+        char.velocity.x = (Math.random() - 0.5) * 10;
+        char.breakoutRemaining = BREAKOUT_DURATION;
+        tracker.stuckDuration = 0;
+      } else if (tracker.stuckDuration >= STUCK_FORCE_TIME) {
+        // 2단계: 강한 push (리셋하지 않음 - 누적하여 breakout 도달 가능)
         char.velocity.x += (Math.random() - 0.5) * 2 * STUCK_PUSH_FORCE;
         char.velocity.y -= STUCK_PUSH_FORCE;
         char.position.y += 0.5;
-        tracker.stuckDuration = 0;
       } else if (tracker.stuckDuration >= STUCK_GENTLE_TIME) {
+        // 1단계: 약한 nudge
         char.velocity.x += (Math.random() - 0.5) * 2 * STUCK_NUDGE_FORCE;
         char.velocity.y -= STUCK_NUDGE_FORCE * 0.5;
       }

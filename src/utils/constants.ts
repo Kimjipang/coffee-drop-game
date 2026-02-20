@@ -42,13 +42,18 @@ export const SIDE_VIEW_SIZE = 65;
 // Stuck detection (uses real time, suppressed during slow motion)
 export const STUCK_CHECK_INTERVAL = 0.5;
 export const STUCK_THRESHOLD_DIST = 0.3;
-export const STUCK_GENTLE_TIME = 1.5;
-export const STUCK_FORCE_TIME = 3.0;
-export const STUCK_NUDGE_FORCE = 5;
-export const STUCK_PUSH_FORCE = 15;
+export const STUCK_GENTLE_TIME = 1.0;
+export const STUCK_FORCE_TIME = 2.0;
+export const STUCK_NUDGE_FORCE = 8;
+export const STUCK_PUSH_FORCE = 25;
 
 // Improved platform gap-seek
-export const PLATFORM_GAP_SEEK_FORCE = 0.25;
+export const PLATFORM_GAP_SEEK_FORCE = 0.45;
+
+// Breakout mode: 5초 갇힘 시 플랫폼 충돌 무시 + 강한 하향 속도
+export const STUCK_BREAKOUT_TIME = 5.0;
+export const BREAKOUT_DURATION = 2.0;
+export const BREAKOUT_VELOCITY_Y = -45;
 
 // Launcher
 export const LAUNCHER_RADIUS = 1.0;

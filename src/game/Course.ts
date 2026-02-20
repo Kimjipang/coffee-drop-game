@@ -134,12 +134,11 @@ export class Course {
 
   private buildPlatformSection(): void {
     const platforms = [
-      { y: 3, gapStart: -2.5, gapEnd: 2 },
-      { y: 0, gapStart: 1, gapEnd: 5.5 },
-      { y: -3, gapStart: -5.5, gapEnd: -1 },
-      { y: -6, gapStart: -0.5, gapEnd: 4 },
-      { y: -9, gapStart: -4, gapEnd: 0.5 },
-      { y: -12, gapStart: 1.5, gapEnd: 6 },
+      { y: 3, gapStart: -2.5, gapEnd: 2.5 },
+      { y: -1, gapStart: 2, gapEnd: 7 },
+      { y: -5, gapStart: -7, gapEnd: -2 },
+      { y: -9, gapStart: -1, gapEnd: 4 },
+      { y: -13, gapStart: -5, gapEnd: 0 },
     ];
 
     for (const p of platforms) {
@@ -149,21 +148,20 @@ export class Course {
     }
 
     // Bumpers near platforms
-    const bumperPositions = [
-      [-4, 1], [5, -2], [-6, -5], [4, -8], [-3, -11],
+    const bumperPositions: [number, number][] = [
+      [-5, 1], [5, -3], [-4, -7],
     ];
     for (const [x, y] of bumperPositions) {
-      this.addObstacle(createBumper(x, y, 0, 15 + Math.random() * 10));
+      this.addObstacle(createBumper(x, y, 0, 12));
     }
   }
 
   private buildFunnelSection(): void {
     // Wide funnel narrowing down
     const funnelLevels = [
-      { y: -18, leftX: -7, rightX: 7, angle: 0.4 },
-      { y: -23, leftX: -5.5, rightX: 5.5, angle: 0.35 },
-      { y: -28, leftX: -4.5, rightX: 4.5, angle: 0.3 },
-      { y: -32, leftX: -4, rightX: 4, angle: 0.2 },
+      { y: -17, leftX: -7.5, rightX: 7.5, angle: 0.3 },
+      { y: -24, leftX: -6, rightX: 6, angle: 0.25 },
+      { y: -31, leftX: -5.5, rightX: 5.5, angle: 0.15 },
     ];
 
     for (const f of funnelLevels) {
@@ -172,43 +170,52 @@ export class Course {
     }
 
     // Bumpers in funnel
-    const bumpers = [
-      [0, -17], [-2, -22], [2, -26], [0, -31],
+    const bumpers: [number, number][] = [
+      [-1.5, -20], [1.5, -27],
     ];
     for (const [x, y] of bumpers) {
-      this.addObstacle(createBumper(x, y, 0, 12 + Math.random() * 8));
+      this.addObstacle(createBumper(x, y, 0, 10));
     }
   }
 
   private buildFinalFunnel(): void {
     // === Zone A: The Divergence (Y: -35 to -40) ===
 
-    // Moving platform that forces left/right choice
-    this.addObstacle(createMovingPlatform(0, -36, 0, COURSE_WIDTH, -2, 2, 1.8, 3, 0));
+    // 이동 플랫폼: 갭이 좌우로 움직여서 타이밍 요소
+    this.addObstacle(createMovingPlatform(
+      0, -36, 0,
+      COURSE_WIDTH,
+      -2, 2,
+      1.5,
+      4,
+      0
+    ));
 
-    // Side launchers that shoot balls back up and inward
-    this.addObstacle(createLauncher(-4, -38, 0, 20, Math.PI * 0.35));
-    this.addObstacle(createLauncher(4, -38, 0, 20, Math.PI * 0.65));
+    // Side launchers: 하향 대각선으로 변환
+    this.addObstacle(createLauncher(-4, -38, 0, 15, Math.PI * 1.7));
+    this.addObstacle(createLauncher(4, -38, 0, 15, Math.PI * 1.3));
 
-    // === Zone B: The Gauntlet (Y: -40 to -46) ===
+    // === Zone B: The Gauntlet (Y: -41 to -46) ===
 
-    // Two moving platforms at different phases
-    this.addObstacle(createMovingPlatform(0, -41, 0, COURSE_WIDTH, -2.5, 2.5, 2.0, 3.5, 0));
-    this.addObstacle(createMovingPlatform(0, -44, 0, COURSE_WIDTH, -2.5, 2.5, 2.2, 3.5, Math.PI));
+    // 이동 플랫폼: Zone A와 반대 위상
+    this.addObstacle(createMovingPlatform(
+      0, -43, 0,
+      COURSE_WIDTH,
+      -2.5, 2.5,
+      2.0,
+      3.5,
+      Math.PI
+    ));
 
-    // Chaos bumpers
-    this.addObstacle(createBumper(-2, -42.5, 0, 18));
-    this.addObstacle(createBumper(2, -42.5, 0, 18));
+    // 스피너: 느리고 짧은 막대
+    this.addObstacle(createSpinner(0, -45, 0, 4, 1.8));
 
-    // A spinner for extra unpredictability
-    this.addObstacle(createSpinner(0, -43, 0, 5, 2.5));
+    // === Zone C: The Final Drop (Y: -47 to -50) ===
 
-    // === Zone C: The Final Drop (Y: -46 to -50) ===
+    // 중앙 하향 런처: 하향 가속 + 약간의 좌우 편향
+    this.addObstacle(createLauncher(0, -47, 0, 12, Math.PI * 1.5));
 
-    // Center launcher pointing up -- dramatic reversal for the leader
-    this.addObstacle(createLauncher(0, -47, 0, 22, Math.PI * 0.5));
-
-    // Final bumpers for last-second drama
+    // 최종 범퍼: 마지막 역전 기회
     this.addObstacle(createBumper(-2.5, -49, 0, 15));
     this.addObstacle(createBumper(2.5, -49, 0, 15));
   }
