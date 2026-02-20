@@ -181,10 +181,10 @@ export class Game {
     const dt = rawDt * timeScale;
 
     // Physics
-    this.physics.update(this.characters, dt, (char) => this.onCharacterFinish(char));
+    this.physics.update(this.characters, dt, rawDt, this.slowMotion.active, (char) => this.onCharacterFinish(char));
 
     // Course spinners
-    this.course.updateSpinners(dt);
+    this.course.updateAnimations(dt);
 
     // Camera
     if (this.slowMotion.active) {

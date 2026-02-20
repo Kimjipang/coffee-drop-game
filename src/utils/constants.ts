@@ -38,3 +38,17 @@ export const THIRD_PERSON_OFFSET_Z = 8;
 export const FIRST_PERSON_OFFSET_Y = 1.5;
 export const CAMERA_LERP = 0.06;
 export const SIDE_VIEW_SIZE = 65;
+
+// Stuck detection (uses real time, suppressed during slow motion)
+export const STUCK_CHECK_INTERVAL = 0.5;
+export const STUCK_THRESHOLD_DIST = 0.3;
+export const STUCK_GENTLE_TIME = 1.5;
+export const STUCK_FORCE_TIME = 3.0;
+export const STUCK_NUDGE_FORCE = 5;
+export const STUCK_PUSH_FORCE = 15;
+
+// Improved platform gap-seek
+export const PLATFORM_GAP_SEEK_FORCE = 0.25;
+
+// Launcher
+export const LAUNCHER_RADIUS = 1.0;

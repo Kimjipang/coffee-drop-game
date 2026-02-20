@@ -6,6 +6,8 @@ import {
   createPlatform,
   createBumper,
   createFunnelWall,
+  createMovingPlatform,
+  createLauncher,
 } from './Obstacle';
 import {
   COURSE_WIDTH,
@@ -26,6 +28,7 @@ import {
 export class Course {
   obstacles: ObstacleData[] = [];
   private group: THREE.Group;
+  private elapsedTime = 0;
 
   constructor() {
     this.group = new THREE.Group();
@@ -131,12 +134,12 @@ export class Course {
 
   private buildPlatformSection(): void {
     const platforms = [
-      { y: 3, gapStart: -2, gapEnd: 0 },
-      { y: 0, gapStart: 2, gapEnd: 5 },
-      { y: -3, gapStart: -5, gapEnd: -2 },
-      { y: -6, gapStart: 0, gapEnd: 3 },
-      { y: -9, gapStart: -3, gapEnd: 0 },
-      { y: -12, gapStart: 3, gapEnd: 6 },
+      { y: 3, gapStart: -2.5, gapEnd: 2 },
+      { y: 0, gapStart: 1, gapEnd: 5.5 },
+      { y: -3, gapStart: -5.5, gapEnd: -1 },
+      { y: -6, gapStart: -0.5, gapEnd: 4 },
+      { y: -9, gapStart: -4, gapEnd: 0.5 },
+      { y: -12, gapStart: 1.5, gapEnd: 6 },
     ];
 
     for (const p of platforms) {
@@ -159,8 +162,8 @@ export class Course {
     const funnelLevels = [
       { y: -18, leftX: -7, rightX: 7, angle: 0.4 },
       { y: -23, leftX: -5.5, rightX: 5.5, angle: 0.35 },
-      { y: -28, leftX: -4, rightX: 4, angle: 0.3 },
-      { y: -32, leftX: -3, rightX: 3, angle: 0.25 },
+      { y: -28, leftX: -4.5, rightX: 4.5, angle: 0.3 },
+      { y: -32, leftX: -4, rightX: 4, angle: 0.2 },
     ];
 
     for (const f of funnelLevels) {
@@ -170,7 +173,7 @@ export class Course {
 
     // Bumpers in funnel
     const bumpers = [
-      [0, -17], [-2, -21], [2, -25], [0, -29], [-1, -33], [1, -31],
+      [0, -17], [-2, -22], [2, -26], [0, -31],
     ];
     for (const [x, y] of bumpers) {
       this.addObstacle(createBumper(x, y, 0, 12 + Math.random() * 8));
@@ -178,23 +181,36 @@ export class Course {
   }
 
   private buildFinalFunnel(): void {
-    // Very narrow final funnel
-    const leftWall = createFunnelWall(-3, -42, 0, 2, 14, 0.15);
-    const rightWall = createFunnelWall(3, -42, 0, 2, 14, -0.15);
-    this.addObstacle(leftWall);
-    this.addObstacle(rightWall);
+    // === Zone A: The Divergence (Y: -35 to -40) ===
 
-    // Extra pegs near the narrow exit
-    this.addObstacle(createPeg(-1, -38, 0, 0.25));
-    this.addObstacle(createPeg(1, -38, 0, 0.25));
-    this.addObstacle(createPeg(0, -40, 0, 0.25));
-    this.addObstacle(createPeg(-0.8, -43, 0, 0.25));
-    this.addObstacle(createPeg(0.8, -43, 0, 0.25));
+    // Moving platform that forces left/right choice
+    this.addObstacle(createMovingPlatform(0, -36, 0, COURSE_WIDTH, -2, 2, 1.8, 3, 0));
 
-    // Final narrow gap
-    this.addObstacle(
-      createPlatform(0, -48, 0, COURSE_WIDTH, -1.5, 1.5),
-    );
+    // Side launchers that shoot balls back up and inward
+    this.addObstacle(createLauncher(-4, -38, 0, 20, Math.PI * 0.35));
+    this.addObstacle(createLauncher(4, -38, 0, 20, Math.PI * 0.65));
+
+    // === Zone B: The Gauntlet (Y: -40 to -46) ===
+
+    // Two moving platforms at different phases
+    this.addObstacle(createMovingPlatform(0, -41, 0, COURSE_WIDTH, -2.5, 2.5, 2.0, 3.5, 0));
+    this.addObstacle(createMovingPlatform(0, -44, 0, COURSE_WIDTH, -2.5, 2.5, 2.2, 3.5, Math.PI));
+
+    // Chaos bumpers
+    this.addObstacle(createBumper(-2, -42.5, 0, 18));
+    this.addObstacle(createBumper(2, -42.5, 0, 18));
+
+    // A spinner for extra unpredictability
+    this.addObstacle(createSpinner(0, -43, 0, 5, 2.5));
+
+    // === Zone C: The Final Drop (Y: -46 to -50) ===
+
+    // Center launcher pointing up -- dramatic reversal for the leader
+    this.addObstacle(createLauncher(0, -47, 0, 22, Math.PI * 0.5));
+
+    // Final bumpers for last-second drama
+    this.addObstacle(createBumper(-2.5, -49, 0, 15));
+    this.addObstacle(createBumper(2.5, -49, 0, 15));
   }
 
   private buildFinishLine(): void {
@@ -220,15 +236,22 @@ export class Course {
     this.group.add(rightPost);
   }
 
-  updateSpinners(dt: number): void {
+  updateAnimations(dt: number): void {
+    this.elapsedTime += dt;
+
     for (const obs of this.obstacles) {
       if (obs.type === 'spinner') {
         (obs.mesh as THREE.Group).rotation.z += obs.spinSpeed! * dt;
+      }
+      if (obs.type === 'moving_platform') {
+        const offset = Math.sin(this.elapsedTime * obs.moveSpeed! + obs.moveOffset!) * obs.moveRange!;
+        obs.mesh.position.x = obs.position.x + offset;
       }
     }
   }
 
   dispose(): void {
+    this.elapsedTime = 0;
     this.group.parent?.remove(this.group);
     this.group.traverse((obj) => {
       if (obj instanceof THREE.Mesh) {

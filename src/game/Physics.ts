@@ -9,17 +9,39 @@ import {
   COURSE_DEPTH,
   MAX_VELOCITY,
   FINISH_Y,
+  STUCK_CHECK_INTERVAL,
+  STUCK_THRESHOLD_DIST,
+  STUCK_GENTLE_TIME,
+  STUCK_FORCE_TIME,
+  STUCK_NUDGE_FORCE,
+  STUCK_PUSH_FORCE,
+  PLATFORM_GAP_SEEK_FORCE,
+  LAUNCHER_RADIUS,
 } from '../utils/constants';
 
 export class Physics {
   private obstacles: ObstacleData[] = [];
   private tempVec = new THREE.Vector3();
+  private elapsedTime = 0;
+  private stuckTrackers: Map<Character, {
+    lastCheckTime: number;
+    lastCheckPos: THREE.Vector3;
+    stuckDuration: number;
+  }> = new Map();
 
   setObstacles(obstacles: ObstacleData[]): void {
     this.obstacles = obstacles;
   }
 
-  update(characters: Character[], dt: number, onFinish: (c: Character) => void): void {
+  update(
+    characters: Character[],
+    dt: number,
+    rawDt: number,
+    isSlowMotion: boolean,
+    onFinish: (c: Character) => void,
+  ): void {
+    this.elapsedTime += dt;
+
     for (const char of characters) {
       if (char.finished) continue;
       this.applyGravity(char, dt);
@@ -28,11 +50,13 @@ export class Physics {
       this.checkCharacterCollisions(char, characters);
       this.checkBounds(char);
       this.clampVelocity(char);
+      this.checkStuck(char, rawDt, isSlowMotion);
 
       if (char.position.y <= FINISH_Y) {
         char.finished = true;
         char.finishTime = performance.now();
         onFinish(char);
+        this.stuckTrackers.delete(char);
       }
     }
   }
@@ -64,6 +88,12 @@ export class Physics {
           break;
         case ObstacleType.FUNNEL_WALL:
           this.collideFunnelWall(char, obs);
+          break;
+        case ObstacleType.MOVING_PLATFORM:
+          this.collideMovingPlatform(char, obs);
+          break;
+        case ObstacleType.LAUNCHER:
+          this.collideLauncher(char, obs);
           break;
       }
     }
@@ -175,7 +205,7 @@ export class Physics {
           char.velocity.x *= FRICTION;
           // Push towards gap
           const gapCenter = (obs.gapStart! + obs.gapEnd!) / 2 + obs.position.x;
-          char.velocity.x += (gapCenter - char.position.x) * 0.05;
+          char.velocity.x += (gapCenter - char.position.x) * PLATFORM_GAP_SEEK_FORCE;
           char.velocity.x += (Math.random() - 0.5) * 3;
         } else if (sign < 0 && char.velocity.y > 0) {
           char.velocity.y *= -RESTITUTION;
@@ -241,6 +271,80 @@ export class Physics {
           char.velocity.x -= (1 + RESTITUTION * 0.5) * vDotN * normal.x * side;
           char.velocity.y -= (1 + RESTITUTION * 0.5) * vDotN * normal.y * side;
         }
+      }
+    }
+  }
+
+  private collideMovingPlatform(char: Character, obs: ObstacleData): void {
+    const offset = Math.sin(this.elapsedTime * obs.moveSpeed! + obs.moveOffset!) * obs.moveRange!;
+    const currentBaseX = obs.position.x + offset;
+
+    const halfW = obs.width! / 2;
+    const halfH = obs.height! / 2;
+    const halfD = obs.depth! / 2;
+
+    const relX = char.position.x - currentBaseX;
+    const relY = char.position.y - obs.position.y;
+    const relZ = char.position.z - obs.position.z;
+
+    if (relX >= obs.gapStart! && relX <= obs.gapEnd!) {
+      return;
+    }
+
+    if (
+      Math.abs(relX) < halfW + char.radius &&
+      Math.abs(relY) < halfH + char.radius &&
+      Math.abs(relZ) < halfD + char.radius
+    ) {
+      const overlapX = halfW + char.radius - Math.abs(relX);
+      const overlapY = halfH + char.radius - Math.abs(relY);
+
+      if (overlapY < overlapX) {
+        const sign = relY > 0 ? 1 : -1;
+        char.position.y = obs.position.y + sign * (halfH + char.radius);
+        if (sign > 0 && char.velocity.y < 0) {
+          char.velocity.y *= -RESTITUTION * (0.7 + Math.random() * 0.3);
+          char.velocity.x *= FRICTION;
+          const gapCenter = (obs.gapStart! + obs.gapEnd!) / 2 + currentBaseX;
+          char.velocity.x += (gapCenter - char.position.x) * PLATFORM_GAP_SEEK_FORCE;
+          char.velocity.x += (Math.random() - 0.5) * 3;
+        } else if (sign < 0 && char.velocity.y > 0) {
+          char.velocity.y *= -RESTITUTION;
+        }
+      } else {
+        const sign = relX > 0 ? 1 : -1;
+        char.position.x = currentBaseX + sign * (halfW + char.radius);
+        char.velocity.x *= -RESTITUTION;
+      }
+    }
+  }
+
+  private collideLauncher(char: Character, obs: ObstacleData): void {
+    const r = LAUNCHER_RADIUS + char.radius;
+    const dx = char.position.x - obs.position.x;
+    const dy = char.position.y - obs.position.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < r && dist > 0.001) {
+      if (this.elapsedTime - obs.lastLaunchTime! >= obs.cooldown!) {
+        const force = obs.launchForce!;
+        const angle = obs.launchAngle!;
+        char.velocity.x = Math.cos(angle) * force + (Math.random() - 0.5) * force * 0.2;
+        char.velocity.y = Math.sin(angle) * force + (Math.random() - 0.5) * force * 0.1;
+
+        obs.lastLaunchTime = this.elapsedTime;
+
+        const pushDist = r - dist + 0.5;
+        if (dist > 0.001) {
+          char.position.x += (dx / dist) * pushDist;
+          char.position.y += (dy / dist) * pushDist;
+        }
+      } else {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const overlap = r - dist;
+        char.position.x += nx * overlap;
+        char.position.y += ny * overlap;
       }
     }
   }
@@ -316,5 +420,49 @@ export class Physics {
     }
     // Dampen Z velocity to keep things mostly 2D
     char.velocity.z *= 0.95;
+  }
+
+  private checkStuck(char: Character, rawDt: number, isSlowMotion: boolean): void {
+    if (!this.stuckTrackers.has(char)) {
+      this.stuckTrackers.set(char, {
+        lastCheckTime: 0,
+        lastCheckPos: char.position.clone(),
+        stuckDuration: 0,
+      });
+    }
+
+    const tracker = this.stuckTrackers.get(char)!;
+
+    if (isSlowMotion) {
+      tracker.stuckDuration = 0;
+      tracker.lastCheckTime = 0;
+      tracker.lastCheckPos.copy(char.position);
+      return;
+    }
+
+    tracker.lastCheckTime += rawDt;
+
+    if (tracker.lastCheckTime >= STUCK_CHECK_INTERVAL) {
+      const dist = char.position.distanceTo(tracker.lastCheckPos);
+
+      if (dist < STUCK_THRESHOLD_DIST) {
+        tracker.stuckDuration += tracker.lastCheckTime;
+      } else {
+        tracker.stuckDuration = 0;
+      }
+
+      tracker.lastCheckPos.copy(char.position);
+      tracker.lastCheckTime = 0;
+
+      if (tracker.stuckDuration >= STUCK_FORCE_TIME) {
+        char.velocity.x += (Math.random() - 0.5) * 2 * STUCK_PUSH_FORCE;
+        char.velocity.y -= STUCK_PUSH_FORCE;
+        char.position.y += 0.5;
+        tracker.stuckDuration = 0;
+      } else if (tracker.stuckDuration >= STUCK_GENTLE_TIME) {
+        char.velocity.x += (Math.random() - 0.5) * 2 * STUCK_NUDGE_FORCE;
+        char.velocity.y -= STUCK_NUDGE_FORCE * 0.5;
+      }
+    }
   }
 }
